@@ -56,7 +56,7 @@ IMAGE_FOLDER = "./input_images"  # Path to input images folder (must exist)
 MODEL_PATH = "yolov8n.pt"        # Nano model for fast performance on RPi
 CONF_THRESHOLD = 0.5             # Minimum confidence threshold
 CLASS_ID_PAPER = 0               # Paper waste class ID (depends on model training)
-                                 # Note: Standard COCO does not include paper waste.
+                                 # Note: Standard COCO does not include paper waste.זהו אוסף עצום של תמונות (מעל 300,000) שפותח במקור על ידי מיקרוסופט, ובו תמונות מתויגות ומסווגות בקפידה
                                  # For this sprint, we assume a custom-trained model
                                  # or use a generic class (e.g., book/cup) for demo.
 
