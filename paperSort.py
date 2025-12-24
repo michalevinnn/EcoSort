@@ -18,20 +18,19 @@ from ultralytics import YOLO
 
 # ---------------------------------------------------------
 # Hiwonder hardware libraries setup
-# The code attempts to import the real hardware libraries.
-# If they are not available (running on a regular computer),
-# mock classes are used for testing and development purposes.
 # ---------------------------------------------------------
 try:
-    # Estimated path to robot libraries (may vary by image version)
+    # Estimated path to robot libraries
     sys.path.append('/home/ubuntu/ArmPi/')
     import ArmIK.ArmMoveIK as ArmIK
     import HiwonderSDK.Board as Board
+
     ON_ROBOT = True
     print("Robot hardware detected – running in full operation mode.")
 except ImportError:
     print("Warning: Hiwonder libraries not found. Running in simulation (Mock Mode).")
     ON_ROBOT = False
+
 
     # Mock classes for logic testing without physical hardware
     class MockBoard:
@@ -41,10 +40,12 @@ except ImportError:
         def setMotor(self, v1, v2, v3, v4):
             print(f"[Mock Hardware] Motors set to speeds: {v1}, {v2}, {v3}, {v4}")
 
+
     class MockArmIK:
         def setPitchRangeMoving(self, target, pitch, range_min, range_max, time):
             print(f"[Mock IK] Moving arm to target {target} (x,y,z) with pitch {pitch}")
             return True  # Indicates that the movement is possible
+
 
     Board = MockBoard()
     ArmIK = MockArmIK
@@ -52,13 +53,15 @@ except ImportError:
 # ---------------------------------------------------------
 # System constants and configuration
 # ---------------------------------------------------------
-IMAGE_FOLDER = "./input_images"  # Path to input images folder (must exist)
-MODEL_PATH = "yolov8n.pt"        # Nano model for fast performance on RPi
-CONF_THRESHOLD = 0.5             # Minimum confidence threshold
-CLASS_ID_PAPER = 0               # Paper waste class ID (depends on model training)
-                                 # Note: Standard COCO does not include paper waste.זהו אוסף עצום של תמונות (מעל 300,000) שפותח במקור על ידי מיקרוסופט, ובו תמונות מתויגות ומסווגות בקפידה
-                                 # For this sprint, we assume a custom-trained model
-                                 # or use a generic class (e.g., book/cup) for demo.
+IMAGE_FOLDER = "./input_images"  # Path to input images folder
+MODEL_PATH = "yolov8n.pt"  # Nano model for fast performance
+
+# --- CONFIGURATION FOR PAPER DETECTION ---
+CONF_THRESHOLD = 0.5  # Minimum confidence threshold
+# Note: In standard COCO dataset, there is no "Paper".
+# We use ID 73 ('book') as a temporary proxy for testing paper handling.
+# If you train a custom model, change this ID to match your 'paper' class.
+CLASS_ID_Plastic = 39
 
 # Servo IDs (based on ArmPi Pro documentation)
 SERVO_ID_GRIPPER = 1
@@ -68,11 +71,12 @@ SERVO_ID_SHOULDER = 4
 SERVO_ID_BASE = 6
 
 # Gripper states (PWM values in microseconds)
-GRIPPER_OPEN = 500    # Open
-GRIPPER_CLOSE = 2000  # Closed (grasping paper)
+GRIPPER_OPEN = 500
+GRIPPER_CLOSE = 2000
 
 # Recycling bin location (robot base coordinate system, cm)
 PAPER_BIN_COORDS = (-15, 12, 10)
+
 
 # ---------------------------------------------------------
 # Class 1: Vision System
@@ -87,17 +91,18 @@ class WasteDetector:
             print(f"Model loading error: {e}")
             sys.exit(1)
 
-    def detect_paper(self, image_path):
+    def detect_plastic(self, image_path):
         """
-        Perform detection on a single image and return detected objects.
+        Perform detection on a single image and return detected objects
+        ONLY if they match the plastic Class ID.
         """
-        frame = cv2.imread(image_path)
+        frame = cv2.imread(image_path) #פונקציה שממירה תמונות לדאטא
         if frame is None:
             print(f"Error: Unable to read image {image_path}")
             return None, []
 
-        # Run inference (disable verbose logging)
-        results = self.model(frame, verbose=False)
+        # Run inference (verbose=True for development debugging)
+        results = self.model(frame, verbose=True)
         detections = []
 
         for r in results:
@@ -107,8 +112,8 @@ class WasteDetector:
                 cls_id = int(box.cls)
                 conf = float(box.conf)
 
-                # Filter detections by confidence threshold
-                if conf >= CONF_THRESHOLD:
+                # Filter: Must be high confidence AND match the Paper Class ID
+                if conf >= CONF_THRESHOLD and cls_id == CLASS_ID_Plastic:
                     # Bounding box coordinates
                     x1, y1, x2, y2 = box.xyxy
                     x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
@@ -124,15 +129,17 @@ class WasteDetector:
                         "class": cls_id
                     })
 
-                    # Draw bounding box and label (debug visualization)
+                    # Draw bounding box and label
+                    # Note: We hardcode "Paper" label because we filtered by ID
                     cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(frame, f"Paper {conf:.2f}", (x1, y1 - 10),
+                    cv2.putText(frame, f"Paper (ID:{cls_id}) {conf:.2f}", (x1, y1 - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
                     # Draw grasp point
                     cv2.circle(frame, (cx, cy), 5, (0, 0, 255), -1)
 
         return frame, detections
+
 
 # ---------------------------------------------------------
 # Class 2: Coordinate Mapper
@@ -142,22 +149,12 @@ class CoordinateMapper:
         self.width = width
         self.height = height
 
-        # Simple linear calibration for Sprint 1
-        # Assumes a fixed camera observing a predefined workspace
-        self.x_range_cm = (-15, 15)  # X axis (left-right)
-        self.y_range_cm = (12, 30)   # Y axis (distance from robot base)
-
-        # Note: Future sprints should use a homography matrix
-        # to correct perspective distortion and camera angle.
+        # Simple linear calibration
+        self.x_range_cm = (-15, 15)  # X axis
+        self.y_range_cm = (12, 30)  # Y axis
 
     def pixel_to_world(self, u, v):
-        """
-        Convert image pixel coordinates (u, v) to robot coordinates (X, Y, Z).
-        Hiwonder ArmPi coordinate system:
-        X+ right, X- left
-        Y+ forward (away from robot)
-        Z+ upward
-        """
+        """Convert image pixel coordinates (u, v) to robot coordinates (X, Y, Z)."""
         # Normalize pixel coordinates
         norm_x = u / self.width
         norm_y = v / self.height
@@ -170,6 +167,7 @@ class CoordinateMapper:
         world_z = 2.0  # cm
 
         return (world_x, world_y, world_z)
+
 
 # ---------------------------------------------------------
 # Class 3: Robot Controller
@@ -192,32 +190,29 @@ class RobotController:
         time.sleep(1.5)
 
     def pickup_item(self, target_coords):
-        """
-        Execute full pickup sequence:
-        1. Open gripper
-        2. Move above target
-        3. Descend
-        4. Close gripper
-        5. Lift arm
-        """
+        """Execute full pickup sequence"""
         x, y, z = target_coords
         print(f"Starting pickup sequence at: {x:.2f}, {y:.2f}, {z:.2f}")
 
         self.board.setBusServoPulse(SERVO_ID_GRIPPER, GRIPPER_OPEN, 500)
         time.sleep(0.5)
 
+        # Move above target
         result = self.ik.setPitchRangeMoving((x, y, z + 5), -90, -90, 0, 1500)
         if not result:
             print("Error: Target is outside robot workspace!")
             return False
         time.sleep(1.5)
 
+        # Descend
         self.ik.setPitchRangeMoving((x, y, z), -90, -90, 0, 1000)
         time.sleep(1.0)
 
+        # Grasp
         self.board.setBusServoPulse(SERVO_ID_GRIPPER, GRIPPER_CLOSE, 500)
         time.sleep(0.8)
 
+        # Lift
         self.ik.setPitchRangeMoving((0, 10, 15), 0, -90, 0, 1500)
         time.sleep(1.5)
 
@@ -235,6 +230,7 @@ class RobotController:
         time.sleep(0.5)
 
         self.reset_pose()
+
 
 # ---------------------------------------------------------
 # Main execution logic
@@ -264,7 +260,7 @@ def main():
 
     for i, img_name in enumerate(images):
         full_path = os.path.join(IMAGE_FOLDER, img_name)
-        print(f"\n--- Processing image {i+1}/{len(images)}: {img_name} ---")
+        print(f"\n--- Processing image {i + 1}/{len(images)}: {img_name} ---")
 
         annotated_frame, detections = detector.detect_paper(full_path)
 
@@ -272,6 +268,7 @@ def main():
             print("No paper detected in this image.")
             continue
 
+        # Sort by confidence (highest first)
         detections.sort(key=lambda x: x['confidence'], reverse=True)
         target = detections[0]
 
@@ -296,6 +293,7 @@ def main():
         print(f"Annotated image saved as: {output_name}")
 
     print("\nSprint 1 execution completed.")
+
 
 if __name__ == "__main__":
     main()
