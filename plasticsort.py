@@ -17,14 +17,14 @@ from ultralytics import YOLO
 # Hiwonder hardware libraries setup
 # ---------------------------------------------------------
 try:
-    # Estimated path to robot libraries on Raspberry Pi 
+    # Estimated path to robot libraries on Raspberry Pi, cheacking the connection between the code and the robot
     sys.path.append('/home/ubuntu/ArmPi/')
     import ArmIK.ArmMoveIK as ArmIK
     import HiwonderSDK.Board as Board
 
     ON_ROBOT = True
     print("Robot hardware detected – running in full operation mode.")
-except ImportError:
+except ImportError: #if the connection to the robot failed, the code continu to run from here
     print("Warning: Hiwonder libraries not found. Running in simulation (Mock Mode).")
     ON_ROBOT = False
 
@@ -52,7 +52,7 @@ IMAGE_FOLDER = "./input_images"
 MODEL_PATH = "yolov8n.pt"  # Pre-trained COCO model 
 
 # --- WASTE CLASSIFICATION CONFIGURATION ---
-CONF_THRESHOLD = 0.5
+CONF_THRESHOLD = 0.5 #lower standart 
 
 # Mapping based on COCO dataset IDs for "Sprint 1" demo.
 # In future sprints, after training on Garbage Data ,
@@ -90,25 +90,25 @@ class WasteDetector:
             print(f"Model loading error: {e}")
             sys.exit(1)
 
-    def detect_waste(self, image_path, target_type='plastic'):
+    def detect_waste(self, image_path, target_type='plastic'):#the main function, get picture and type of waste to find
         """
         Perform detection on a single image.
         """
         # Load image using OpenCV 
-        frame = cv2.imread(image_path)
+        frame = cv2.imread(image_path) #get the type of waste and Converts it to a number
         if frame is None:
-            print(f"Error: Unable to read image {image_path}")
+            print(f"Error: Unable to read image {image_path}") #checking if the number is valid
             return None, []
 
         # Get the ID we are looking for from our config
-        target_id = WASTE_CLASSES.get(target_type)
+        target_id = WASTE_CLASSES.get(target_type) 
 
         # Run inference
         # Note: For video stream in future, use model.track() 
-        results = self.model(frame, verbose=True)
+        results = self.model(frame, verbose=True) 
         detections = []
 
-        for r in results:
+        for r in results: #the loop is running on the pictures, if one of them contain waste it wukk save in the detection array
             boxes = r.boxes
             for box in boxes:
                 cls_id = int(box.cls)
@@ -143,7 +143,7 @@ class WasteDetector:
 # ---------------------------------------------------------
 # Class 2: Coordinate Mapper
 # ---------------------------------------------------------
-class CoordinateMapper:
+class CoordinateMapper: #this class convert pictures in 2D to 3D object in CM
     def __init__(self, width=640, height=480):
         self.width = width
         self.height = height
@@ -178,7 +178,7 @@ class RobotController:
         self.ik.setPitchRangeMoving((0, 10, 15), 0, -90, 0, 1500)
         time.sleep(1.0)
 
-    def pickup_item(self, target_coords):
+    def pickup_item(self, target_coords): #the order to pick up the trash
         x, y, z = target_coords
         print(f"Starting pickup at: {x:.1f}, {y:.1f}, {z:.1f}")
 
