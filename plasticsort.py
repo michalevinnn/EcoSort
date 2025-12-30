@@ -38,7 +38,7 @@ except ImportError: #if the connection to the robot failed, the code continu to 
             pass
 
     class MockArmIK:
-        def setPitchRangeMoving(self, target, pitch, range_min, range_max, time):
+        def setPitchRangeMoving(self, target, pitch, range_min, range_max):
             print(f"[Mock IK] Moving arm to target {target} (x,y,z) with pitch {pitch}")
             return True 
 
@@ -218,13 +218,9 @@ class RobotController:
 # Main Logic
 # ---------------------------------------------------------
 def main():
-    try:
-        detector = WasteDetector(MODEL_PATH)
-        mapper = CoordinateMapper()
-        robot = RobotController()
-    except Exception as e:
-        print(f"Init failed: {e}")
-        return
+    detector = WasteDetector(MODEL_PATH)
+    mapper = CoordinateMapper()
+    robot = RobotController()
 
     if not os.path.exists(IMAGE_FOLDER):
         os.makedirs(IMAGE_FOLDER)
