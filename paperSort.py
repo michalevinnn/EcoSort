@@ -1,12 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """
 EcoSort - Waste Sorting System (Sprint 1)
 Description: Paper waste detection from images using YOLOv8 and robotic pickup
              using the Hiwonder ArmPi Pro SDK.
 Author: EcoSort Development Team
-Date: February 2025
+Date: december 2025
 """
 
 import cv2
