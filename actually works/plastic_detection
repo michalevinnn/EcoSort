@@ -1,0 +1,81 @@
+import torch
+import os
+from huggingface_hub import hf_hub_download
+from PIL import Image
+
+
+def detect_garbage_in_folder(input_folder="input_images", output_folder="output_images"):
+    # --- 1. Setup Folders ---
+    if not os.path.exists(input_folder):
+        print(f"Error: The folder '{input_folder}' does not exist.")
+        return
+
+    # Create output folder if it doesn't exist
+    os.makedirs(output_folder, exist_ok=True)
+
+    # --- 2. Load Model ---
+    print(f"Downloading and loading model 'keremberke/yolov5m-garbage'...")
+
+    # Download weights
+    model_weights = hf_hub_download(
+        repo_id="keremberke/yolov5m-garbage",
+        filename="best.pt"
+    )
+
+    # Load model via torch.hub
+    model = torch.hub.load(
+        'ultralytics/yolov5',
+        'custom',
+        path=model_weights,
+        force_reload=False,
+        trust_repo=True
+    )
+
+    # --- 3. Process Images ---
+    valid_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.webp')
+    files = [f for f in os.listdir(input_folder) if f.lower().endswith(valid_extensions)]
+
+    if not files:
+        print(f"No image files found in '{input_folder}'.")
+        return
+
+    print(f"Found {len(files)} images. Starting inference...\n")
+
+    for filename in files:
+        image_path = os.path.join(input_folder, filename)
+
+        try:
+            # Load image
+            img = Image.open(image_path)
+
+            # Make prediction
+            results = model(img)
+
+            # --- 4. Print Results ---
+            predictions = results.pandas().xyxy[0]
+
+            print(f"--- Processing: {filename} ---")
+            if not predictions.empty:
+                for _, row in predictions.iterrows():
+                    print(f"  > Detected: {row['name']} ({row['confidence']:.2f})")
+            else:
+                print("  > No garbage detected.")
+
+            # --- 5. Save Visual Result ---
+            # results.save() saves to 'runs/detect/exp', but we can manually save to our folder
+            # The 'results.render()' method returns the image array with boxes drawn
+            results.render()
+
+            # results.ims is a list of numpy arrays (images) with the boxes drawn
+            # We convert the first (and only) image back to PIL to save it
+            img_with_boxes = Image.fromarray(results.ims[0])
+            save_path = os.path.join(output_folder, f"pred_{filename}")
+            img_with_boxes.save(save_path)
+            print(f"  > Saved result to: {save_path}\n")
+
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")
+
+
+if __name__ == "__main__":
+    detect_garbage_in_folder()
