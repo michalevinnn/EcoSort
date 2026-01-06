@@ -1,2 +1,14 @@
 to run this you need to install:
 pip install torch torchvision huggingface_hub pillow
+
+relevant documentaion:
+
+gerbage detection model:
+https://huggingface.co/keremberke/yolov5m-garbage
+
+image database:
+https://universe.roboflow.com/material-identification/garbage-classification-3/dataset/2
+
+robot docs:
+https://wiki.hiwonder.com/projects/ArmPi_Pro/en/latest/
+
