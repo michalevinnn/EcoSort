@@ -1,0 +1,2 @@
+to run this you need to install:
+pip install torch torchvision huggingface_hub pillow
